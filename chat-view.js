@@ -53,10 +53,10 @@ export class ChatView {
       }
       for(const op of row.operations||[]){
         const card=element('details','task'),head=element('summary','task-header');
-        card.dataset.key=op.id;card.open=expanded.has(op.id)||op.delivery==='interrupted';
+        card.dataset.key=op.id;card.open=expanded.has(op.id)||['interrupted','muted'].includes(op.delivery);
         head.append(element('span','', '处理进度'),element('span','task-state '+(['running','queued'].includes(op.status)?'running':''),statuses[op.status]||op.status));card.append(head);
         if(op.text)card.append(element('p','',op.text));
-        if(op.delivery==='interrupted')card.append(element('small','','已停止播报，结果保留在这条对话里，不会再次自动播放。'));
+        if(['interrupted','muted'].includes(op.delivery))card.append(element('small','','已停止播报，结果保留在这条对话里，不会再次自动播放。'));
         body.append(card);
       }
       article.append(body);fragment.append(article);

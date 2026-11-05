@@ -29,3 +29,9 @@ test('each task stays inside the original assistant reply across newer questions
   assert.equal(items[3].content,'我来查新闻。');assert.equal(items[3].operations[0].id,'job-b');
   assert.equal(items[0].operations,undefined);
 });
+
+test('muted speech keeps its completed result attached to the request',()=>{
+  const rows=[{role:'user',turn_id:'a',content:'新闻'},{role:'assistant',turn_id:'a',content:'核对中。'}];
+  const items=conversationItems(rows,new Map(),[{id:'job',turn_id:'a',delivery:'muted',status:'completed',text:'确认的结果。'}]);
+  assert.equal(items[1].operations[0].delivery,'muted');assert.equal(items[1].operations[0].text,'确认的结果。');
+});
