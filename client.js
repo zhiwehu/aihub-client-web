@@ -40,7 +40,7 @@ function controls(){
   $('recording-state').textContent=recording?(recording.paused?'已暂停':'录音中'):'尚未开始 / 已结束';
 }
 function disconnect(){
-  $('mic').textContent='开启语音';
+  $('mic').textContent='开启语音';$('music-panel').hidden=true;
   ready=false;clearInterval(ping);clearInterval(poll);audio.clear();audio.stopMic();socket?.close();socket=null;recording=null;
   controls();$('status').textContent='已断开；录音状态请重新连接后刷新确认。';
 }
@@ -93,6 +93,15 @@ $('connection').onsubmit=async event=>{
       if(e.type==='hello'){sid=e.session_id;resume=e.resume_token;ready=true;chat.reset(sid);controls();location.hash='#'+previousPage;await history();await recordings();await tasks();ping=setInterval(()=>send({type:'ping'}),20000);poll=setInterval(()=>Promise.all([recordings(),tasks()]).catch(error),3000);$('status').textContent='已连接';}
       if(e.type==='error'){if(e.code==='invalid_resume'){sid=resume=null;}throw Error(e.message||e.code);}
       if(e.type==='session.state')$('status').textContent={standby:'已连接 · 待机',listening:'聆听中',thinking:'思考中',speaking:'回复中',recording:'录音中'}[e.state]||e.state;
+      if(e.type==='music.state'){
+        if(e.state==='playing')$('status').textContent='音乐播放中';
+        else if(e.state==='paused')$('status').textContent='已连接 · 音乐已暂停';
+        $('music-panel').hidden=e.state==='stopped'&&!e.title;
+        $('music-title').textContent=e.title||'本地音乐';
+        $('music-state').textContent={queued:'准备播放',playing:'正在播放',paused:'已暂停',stopped:'播放结束',failed:'播放失败，请换首歌重试'}[e.state]||e.state;
+        $('music-pause').textContent=e.state==='paused'?'继续':'暂停';
+        $('music-pause').disabled=!['playing','paused'].includes(e.state);$('music-stop').disabled=e.state==='stopped';
+      }
       chat.event(e);
       if(['message.user','reply.final','turn.completed','playback.clear'].includes(e.type))await history();
       if(e.type.startsWith('tool.'))tasks().catch(error);
@@ -100,7 +109,7 @@ $('connection').onsubmit=async event=>{
       if(e.type.startsWith('recording.')){if(e.recording)recording=e.recording.status==='active'?e.recording:null;controls();await recordings();if(e.message)$('error').textContent=e.message;}
       await audio.event(e);
     }catch(e){error(e);}};
-    ws.onclose=()=>{if(socket!==ws)return;$('mic').textContent='开启语音';ready=false;clearInterval(ping);clearInterval(poll);audio.clear();audio.stopMic();controls();$('status').textContent='连接已断开，请重新连接。';};
+    ws.onclose=()=>{if(socket!==ws)return;$('music-panel').hidden=true;$('mic').textContent='开启语音';ready=false;clearInterval(ping);clearInterval(poll);audio.clear();audio.stopMic();controls();$('status').textContent='连接已断开，请重新连接。';};
     ws.onerror=()=>{if(socket===ws)error(Error('连接失败，请检查服务地址和连接码。'));};
   }catch(e){error(e);}
 };
@@ -117,3 +126,7 @@ $('minutes-generate').onclick=async()=>{if(!selected)return;try{await api('recor
 window.addEventListener('pagehide',()=>{disconnect();if(audioURL)URL.revokeObjectURL(audioURL);});
 
 $('text').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();$('text-form').requestSubmit();}});
+
+$('music-pause').onclick=()=>send({type:'music.control',action:$('music-pause').textContent==='继续'?'resume':'pause'});
+$('music-stop').onclick=()=>send({type:'music.control',action:'stop'});
+$('music-volume').oninput=event=>audio.setMusicVolume(Number(event.target.value)/100);

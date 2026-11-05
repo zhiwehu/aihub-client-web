@@ -2,7 +2,7 @@ import {toolCallsForTurn} from './tool-calls.mjs';
 const $=id=>document.getElementById(id);
 const element=(tag,className,text)=>{const e=document.createElement(tag);e.className=className||'';if(text!==undefined)e.textContent=text;return e;};
 const phases={running:'正在执行',completed:'已完成',failed:'执行失败',cancelled:'已停止',unknown:'状态待核实'};
-const toolNames={calendar:'日程',timer:'计时提醒',weather:'天气查询',workflow:'多步处理'};
+const toolNames={music:'本地音乐',calendar:'日程',timer:'计时提醒',weather:'天气查询',workflow:'多步处理'};
 const statuses={queued:'等待处理',running:'正在处理',completed:'已完成',failed:'未能完成',waiting:'等待确认',cancelled:'已取消',unknown:'需要核实'};
 // Attach background state to its original assistant turn, even when newer messages exist.
 export function conversationItems(rows,partials,operations,toolTurns=[]){

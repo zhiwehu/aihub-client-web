@@ -4,7 +4,9 @@ export class ClientAudio {
   async ready() {
     this.context ||= new AudioContext();
     await this.context.resume();
+    if(!this.musicGain){this.musicGain=this.context.createGain();this.musicGain.gain.value=this.musicVolume??.5;this.musicGain.connect(this.context.destination);}
   }
+  setMusicVolume(value){this.musicVolume=Math.max(0,Math.min(1,value));if(this.musicGain)this.musicGain.gain.value=this.musicVolume;}
   async microphone() {
     if (!globalThis.isSecureContext || !navigator.mediaDevices?.getUserMedia)
       throw Error('麦克风需要 localhost 或 HTTPS 安全连接。');
@@ -33,7 +35,7 @@ export class ClientAudio {
   }
   async event(e) {
     if(e.type==='playback.clear'){this.clear();return;}
-    if(e.type==='audio.start'){this.clear();this.turn=e.turn_id;this.rate=e.sample_rate||16000;}
+    if(e.type==='audio.start'){this.clear();this.turn=e.turn_id;this.rate=e.sample_rate||16000;this.purpose=e.purpose;}
     if(e.type==='audio.chunk'&&e.turn_id===this.turn){
       await this.ready();
       const raw=Uint8Array.from(atob(e.data),c=>c.charCodeAt(0));
@@ -42,7 +44,7 @@ export class ClientAudio {
       const samples=buffer.getChannelData(0);
       for(let i=0;i<samples.length;i++)samples[i]=pcm.getInt16(i*2,true)/32768;
       if(this.next-this.context.currentTime>.5){this.clear();this.send({type:'interrupt'});return;}
-      const source=this.context.createBufferSource(); source.buffer=buffer;source.connect(this.context.destination);
+      const source=this.context.createBufferSource(); source.buffer=buffer;source.connect(this.purpose==='music'?this.musicGain:this.context.destination);
       this.next=Math.max(this.next,this.context.currentTime+.015);source.start(this.next);this.next+=buffer.duration;
       this.sources.add(source);source.onended=()=>this.sources.delete(source);
     }
