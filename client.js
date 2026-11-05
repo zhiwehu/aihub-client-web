@@ -1,5 +1,17 @@
 import {ClientAudio} from './audio.js';
+import {ChatView} from './chat-view.js';
 const $=id=>document.getElementById(id);
+const chat=new ChatView();
+let previousPage='chat';
+function page(){
+  const name=location.hash==='#recordings'?'recordings':location.hash==='#connection'?'connection':'chat';
+  if(name!=='connection')previousPage=name;
+  $('chat-page').hidden=name!=='chat';$('recordings-page').hidden=name!=='recordings';$('connection-panel').hidden=name!=='connection';
+  $('page-title').textContent={chat:'对话',recordings:'会议录音',connection:'连接设置'}[name];
+  $('page-kicker').textContent={chat:'和声桥一起',recordings:'记录每一个重点',connection:'管理当前网页的连接'}[name];
+  for(const a of document.querySelectorAll('[data-page]')){if(a.dataset.page===name)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');}
+}
+window.addEventListener('hashchange',page);page();
 let base=location.origin, token='', socket, sid, resume, ready=false, recording=null, selected=null, audioURL=null, ping, poll;
 const audio=new ClientAudio(send, packet=>{
   if(ready&&socket?.readyState===WebSocket.OPEN){
@@ -18,24 +30,28 @@ async function api(path, options={}){
 function controls(){
   for(const id of ['send','mic','interrupt','refresh-recordings'])$(id).disabled=!ready;
   $('disconnect').disabled=!socket;
+  $('connection-badge').textContent=ready?'已连接':'未连接';$('connection-badge').classList.toggle('connected',ready);
   $('start-recording').disabled=!ready||!!recording;
   $('pause-recording').disabled=!ready||!recording;
   $('stop-recording').disabled=!ready||!recording;
   $('pause-recording').textContent=recording?.paused?'继续':'暂停';
   $('send').disabled=!ready||!!recording;
+  $('mic').disabled=!ready||!!recording;
   $('recording-state').textContent=recording?(recording.paused?'已暂停':'录音中'):'尚未开始 / 已结束';
 }
 function disconnect(){
+  $('mic').textContent='开启语音';
   ready=false;clearInterval(ping);clearInterval(poll);audio.clear();audio.stopMic();socket?.close();socket=null;recording=null;
   controls();$('status').textContent='已断开；录音状态请重新连接后刷新确认。';
 }
+let historyVersion=0;
 async function history(){
   if(!sid)return;
-  const rows=await api('sessions/'+sid+'/messages');
-  $('messages').replaceChildren();
-  for(const row of rows){const p=document.createElement('p'), who=document.createElement('strong');who.textContent=row.role==='user'?'你':'声桥';p.append(who,document.createTextNode(row.content));$('messages').append(p);}
-  $('messages').scrollTop=$('messages').scrollHeight;
+  const current=sid,version=++historyVersion;
+  const [rows,evidence]=await Promise.all([api('sessions/'+current+'/messages'),api('sessions/'+current+'/tool-calls')]);
+  if(current===sid&&version===historyVersion)chat.history(rows,evidence);
 }
+async function tasks(){const data=await api('operations');chat.tasks(data.operations.filter(r=>r.session_id===sid));}
 async function recordings(){
   const data=await api('recordings');$('recordings').replaceChildren();
   recording=data.recordings.find(r=>r.session_id===sid&&r.status==='active')||null;controls();
@@ -74,21 +90,23 @@ $('connection').onsubmit=async event=>{
     ws.onopen=()=>{if(socket!==ws)return;ws.send(JSON.stringify({type:'hello',version:1,token,wake_mode:'manual',...(sid?{session_id:sid,resume_token:resume}:{}),audio:{format:'pcm_s16le',sample_rate:16000},capabilities:{echo_cancellation:true}}));};
     ws.onmessage=async event=>{if(socket!==ws)return;try{
       const e=JSON.parse(event.data);
-      if(e.type==='hello'){sid=e.session_id;resume=e.resume_token;ready=true;controls();await history();await recordings();ping=setInterval(()=>send({type:'ping'}),20000);poll=setInterval(()=>recordings().catch(error),5000);$('status').textContent='已连接';}
+      if(e.type==='hello'){sid=e.session_id;resume=e.resume_token;ready=true;chat.reset(sid);controls();location.hash='#'+previousPage;await history();await recordings();await tasks();ping=setInterval(()=>send({type:'ping'}),20000);poll=setInterval(()=>Promise.all([recordings(),tasks()]).catch(error),3000);$('status').textContent='已连接';}
       if(e.type==='error'){if(e.code==='invalid_resume'){sid=resume=null;}throw Error(e.message||e.code);}
       if(e.type==='session.state')$('status').textContent={standby:'已连接 · 待机',listening:'聆听中',thinking:'思考中',speaking:'回复中',recording:'录音中'}[e.state]||e.state;
-      if(e.type==='reply.delta')$('partial').textContent+=e.text;
-      if(['message.user','reply.final','turn.completed','playback.clear'].includes(e.type)){if(e.type!=='message.user')$('partial').textContent='';await history();}
+      chat.event(e);
+      if(['message.user','reply.final','turn.completed','playback.clear'].includes(e.type))await history();
+      if(e.type.startsWith('tool.'))tasks().catch(error);
+      if(e.type==='recording.stopped'){audio.stopMic();$('mic').textContent='开启语音';}
       if(e.type.startsWith('recording.')){if(e.recording)recording=e.recording.status==='active'?e.recording:null;controls();await recordings();if(e.message)$('error').textContent=e.message;}
       await audio.event(e);
     }catch(e){error(e);}};
-    ws.onclose=()=>{if(socket!==ws)return;ready=false;clearInterval(ping);clearInterval(poll);audio.clear();audio.stopMic();controls();$('status').textContent='连接已断开，请重新连接。';};
-    ws.onerror=()=>{if(socket===ws)error(Error('连接失败，请检查服务端地址和凭证。'));};
+    ws.onclose=()=>{if(socket!==ws)return;$('mic').textContent='开启语音';ready=false;clearInterval(ping);clearInterval(poll);audio.clear();audio.stopMic();controls();$('status').textContent='连接已断开，请重新连接。';};
+    ws.onerror=()=>{if(socket===ws)error(Error('连接失败，请检查服务地址和连接码。'));};
   }catch(e){error(e);}
 };
 $('disconnect').onclick=disconnect;
 $('text-form').onsubmit=event=>{event.preventDefault();const text=$('text').value.trim();if(text&&ready&&!recording){send({type:'input.text',text});$('text').value='';}};
-$('mic').onclick=async()=>{try{await audio.microphone();send({type:'session.activate'});$('mic').textContent='语音已开启';}catch(e){error(e);}};
+$('mic').onclick=async()=>{try{if($('mic').textContent==='关闭语音'){audio.stopMic();$('mic').textContent='开启语音';return;}await audio.microphone();send({type:'session.activate'});$('mic').textContent='关闭语音';}catch(e){error(e);}};
 $('interrupt').onclick=()=>{audio.clear();send({type:'interrupt'});};
 $('start-recording').onclick=async()=>{try{await audio.microphone();send({type:'recording.start'});}catch(e){error(e);}};
 $('pause-recording').onclick=()=>send({type:recording?.paused?'recording.resume':'recording.pause'});
@@ -97,3 +115,5 @@ $('refresh-recordings').onclick=()=>recordings().catch(error);
 $('minutes-refresh').onclick=()=>minutes().catch(error);
 $('minutes-generate').onclick=async()=>{if(!selected)return;try{await api('recordings/'+selected.id+'/minutes',{method:'POST',body:JSON.stringify({template_id:$('templates').value})});await minutes();}catch(e){error(e);}};
 window.addEventListener('pagehide',()=>{disconnect();if(audioURL)URL.revokeObjectURL(audioURL);});
+
+$('text').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();$('text-form').requestSubmit();}});

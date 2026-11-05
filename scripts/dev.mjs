@@ -2,8 +2,8 @@ import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 const root=new URL('../',import.meta.url);
-const files=new Map(['index.html','client.js','audio.js','capture.js','style.css'].map(name=>[name,new URL(name,root)]));
-const types={html:'text/html',js:'text/javascript',css:'text/css'};
+const files=new Map(['index.html','client.js','chat-view.js','tool-calls.mjs','audio.js','capture.js','style.css'].map(name=>[name,new URL(name,root)]));
+const types={html:'text/html',js:'text/javascript',mjs:'text/javascript',css:'text/css'};
 createServer(async(req,res)=>{
   const path=new URL(req.url,'http://localhost').pathname;
   const name=path==='/'||path==='/demo/'?'index.html':path.startsWith('/demo/assets/')?path.slice('/demo/assets/'.length):'';
