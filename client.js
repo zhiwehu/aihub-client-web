@@ -12,7 +12,7 @@ function page(){
   for(const a of document.querySelectorAll('[data-page]')){if(a.dataset.page===name)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');}
 }
 window.addEventListener('hashchange',page);page();
-let base=location.origin, token='', socket, sid, resume, ready=false, recording=null, selected=null, audioURL=null, ping, poll, transcriptLines=[];
+let base=location.origin, token='', socket, sid, resume, ready=false, recording=null, selected=null, audioURL=null, ping, poll, transcriptLines=[], recordingTab='transcript';
 const audio=new ClientAudio(send, packet=>{
   if(ready&&socket?.readyState===WebSocket.OPEN){
     if(socket.bufferedAmount>64000){disconnect();error(Error('音频上传积压，请重新连接。'));return;}
@@ -109,16 +109,30 @@ async function openRecording(row){
   $('detail-state').classList.toggle('active',row.status==='active');
   transcriptLines=[];$('live-state').hidden=row.status!=='active';$('live-state').textContent='正在录音，停顿后文字会实时出现在下面。';
   $('player').pause();$('player').removeAttribute('src');$('player').hidden=row.status==='active';
-  $('download-audio').disabled=true;if(audioURL)URL.revokeObjectURL(audioURL);audioURL=null;
+  $('download-raw').disabled=true;$('download-ready').disabled=row.status==='active';
+  if(audioURL)URL.revokeObjectURL(audioURL);audioURL=null;
   if(row.status!=='active'){
     const response=await fetch(base+'/client/v1/recordings/'+row.id+'/audio',{credentials:'omit',headers:{Authorization:'Bearer '+token}});
-    if(response.ok){audioURL=URL.createObjectURL(await response.blob());$('player').src=audioURL;$('player').load();$('download-audio').disabled=false;}
+    if(response.ok){audioURL=URL.createObjectURL(await response.blob());$('player').src=audioURL;$('player').load();$('download-raw').disabled=false;}
   }
+  setRecordingTab('transcript');
   const transcript=await api('recordings/'+row.id+'/transcript');transcriptLines=normalizeTranscript(transcript);renderTranscript();
   $('minutes-generate').disabled=row.status==='active';
   try{const data=await api('meeting-templates');$('templates').replaceChildren();for(const t of data.templates){const option=document.createElement('option');option.value=t.template_id;option.textContent=t.name;$('templates').append(option);}}catch(e){error(e);}
   await minutes();
 }
+function setRecordingTab(name){
+  recordingTab=name;
+  for(const button of document.querySelectorAll('[data-recording-tab]')){
+    const active=button.dataset.recordingTab===name;
+    button.setAttribute('aria-selected',active?'true':'false');
+  }
+  $('tab-transcript').hidden=name!=='transcript';
+  $('tab-summary').hidden=name!=='summary';
+  if(name==='summary')minutes().catch(error);
+}
+for(const button of document.querySelectorAll('[data-recording-tab]'))
+  button.onclick=()=>setRecordingTab(button.dataset.recordingTab);
 function transcriptEmpty(title,hint){
   const box=document.createElement('div');box.className='transcript-empty';
   const strong=document.createElement('strong');strong.textContent=title;box.append(strong);
@@ -167,7 +181,7 @@ async function reloadTranscript(row){
 async function minutes(){
   if(!selected)return;
   const data=await api('recordings/'+selected.id+'/minutes');
-  if(!data.jobs?.length){$('minutes').textContent='尚未生成纪要。';return;}
+  if(!data.jobs?.length){$('minutes').textContent='还没有摘要，点击上方“生成摘要”创建。';return;}
   const job=await api('recordings/'+selected.id+'/minutes/'+data.jobs[0].id);
   $('minutes').textContent=job.job?.result?(job.job.edited_markdown||job.job.result.markdown||JSON.stringify(job.job.result,null,2)):('状态：'+(job.job?.status||'未知')+(job.job?.error?' · '+JSON.stringify(job.job.error):''));
 }
@@ -234,9 +248,22 @@ $('pause-recording').onclick=()=>send({type:recording?.paused?'recording.resume'
 $('stop-recording').onclick=()=>send({type:'recording.stop'});
 $('refresh-recordings').onclick=()=>recordings().catch(error);
 $('player').addEventListener('timeupdate',highlightTranscriptLine);
-$('download-audio').onclick=()=>{
+function saveBlob(blob,name){
+  const url=URL.createObjectURL(blob);const link=document.createElement('a');
+  link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+$('download-raw').onclick=()=>{
   if(!audioURL)return;
   const link=document.createElement('a');link.href=audioURL;link.download='recording-'+selected?.id+'.wav';link.click();
+};
+$('download-ready').onclick=async()=>{
+  if(!selected||selected.status==='active')return;
+  const button=$('download-ready'),label=button.textContent;button.disabled=true;button.textContent='生成中…';
+  try{
+    const response=await fetch(base+'/client/v1/recordings/'+selected.id+'/ready',{credentials:'omit',headers:{Authorization:'Bearer '+token}});
+    if(!response.ok)throw Error('精简音频生成失败（'+response.status+'）');
+    saveBlob(await response.blob(),'recording-'+selected.id+'-ready.wav');
+  }catch(e){error(e);}finally{button.textContent=label;button.disabled=selected.status==='active';}
 };
 $('export-transcript').onclick=()=>{
   const body=transcriptLines.map(line=>[line.stamp?'['+line.stamp+']':'',line.speaker?line.speaker+':':'',line.text].filter(Boolean).join(' ')).join('\n');

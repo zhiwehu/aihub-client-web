@@ -65,3 +65,16 @@
 .detail-empty button{margin-top:16px}
 .tag.active{color:var(--green);background:#eef5ee;border-color:#cfe0d2}
 @media(max-width:900px){#recordings-page{padding:16px}.recordings-layout{grid-template-columns:1fr}}
+
+/* right-side controls and transcript/summary tabs */
+.recording-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px;flex:0 0 auto;margin:8px 0}
+.recording-controls button{min-height:34px;padding:7px 12px;font-size:12px}
+.recording-controls #recording-state{margin-left:auto}
+.recording-tabs{display:flex;gap:4px;flex:0 0 auto;border-bottom:1px solid var(--line);margin:4px 0 0}
+.recording-tabs button{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 12px;min-height:36px;font-size:12px}
+.recording-tabs button[aria-selected="true"]{color:var(--green);border-bottom-color:var(--green);font-weight:600}
+.recording-tab{display:flex;flex-direction:column;flex:1;min-height:0;padding-top:8px}
+#tab-summary .actions{flex:0 0 auto;margin:0 0 8px}
+#minutes{flex:1;min-height:0;overflow:auto;margin:0}
+#tab-summary[hidden],#tab-transcript[hidden]{display:none}
+.record-list .section-heading{margin-bottom:12px}
