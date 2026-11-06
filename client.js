@@ -52,13 +52,45 @@ async function history(){
   if(current===sid&&version===historyVersion)chat.history(rows,evidence);
 }
 async function tasks(){const data=await api('operations');chat.tasks(data.operations.filter(r=>r.session_id===sid));}
+function formatClock(seconds){
+  seconds=Math.max(0,Math.floor(Number(seconds)||0));
+  const minutes=Math.floor(seconds/60),rest=seconds%60;
+  return String(minutes).padStart(2,'0')+':'+String(rest).padStart(2,'0');
+}
+function formatDuration(milliseconds){
+  const seconds=Math.round((Number(milliseconds)||0)/1000);
+  if(seconds<60)return seconds+' 秒';
+  return formatClock(seconds);
+}
+function recordingSource(row){
+  return row.client_type==='web'?'网页录音':row.client_type==='device'?'设备录音':'';
+}
+function transcriptObject(value){
+  const stamp=String(value?.stamp||'');
+  let elapsed=Number.isFinite(value?.elapsed_ms)?value.elapsed_ms:null;
+  if(elapsed===null&&/^\d{1,2}:\d{2}$/.test(stamp)){
+    const [minutes,seconds]=stamp.split(':').map(Number);elapsed=(minutes*60+seconds)*1000;
+  }
+  return {stamp,elapsed_ms:elapsed,text:String(value?.text||''),
+          speaker:value?.speaker?String(value.speaker):null,
+          speaker_id:Number.isFinite(value?.speaker_id)?value.speaker_id:null};
+}
+function normalizeTranscript(transcript){
+  if(Array.isArray(transcript?.lines)&&transcript.lines.length)return transcript.lines.map(transcriptObject);
+  return String(transcript?.text||'').split('\n').filter(Boolean).map(text=>transcriptObject({text}));
+}
 async function recordings(){
   const data=await api('recordings');$('recordings').replaceChildren();
+  $('recordings-count').textContent=data.recordings.length+' 个';
   recording=data.recordings.find(r=>r.session_id===sid&&r.status==='active')||null;controls();
   if(!data.recordings.length)$('recordings').textContent='还没有录音。';
   for(const row of data.recordings){
     const b=document.createElement('button');
-    b.textContent=new Date(row.started_at*1000).toLocaleString()+' · '+(row.status==='active'?(row.paused?'已暂停':'录音中'):(row.samples?'已保存':'已结束 · 无音频'));
+    const duration=formatDuration(row.duration_ms||(row.samples?row.samples/16000*1000:0));
+    const speakers=row.speaker_count?' · '+row.speaker_count+' 人':'';
+    const state=row.status==='active'?(row.paused?' · 已暂停':' · 录音中'):'';
+    const source=recordingSource(row)?' · '+recordingSource(row):'';
+    b.textContent=new Date(row.started_at*1000).toLocaleString()+' · '+duration+speakers+state+source;
     b.className=(row.id===recording?.id?'active ':'')+(row.id===selected?.id?'selected':'');
     b.onclick=()=>openRecording(row).catch(error);$('recordings').append(b);
   }
@@ -67,36 +99,68 @@ async function recordings(){
 }
 async function openRecording(row){
   selected=row;$('detail').hidden=false;$('detail-empty').hidden=true;$('detail-body').hidden=false;
-  $('detail-title').textContent='录音 · '+new Date(row.started_at*1000).toLocaleString();
+  $('detail-date').textContent=new Date(row.started_at*1000).toLocaleString();
+  $('detail-title').textContent=recordingSource(row)||'录音详情';
+  $('detail-meta').textContent=[formatDuration(row.duration_ms||(row.samples?row.samples/16000*1000:0)),
+    row.speaker_count?row.speaker_count+' 人':'',recordingSource(row)].filter(Boolean).join(' · ');
+  $('detail-state').textContent=row.status==='active'?(row.paused?'已暂停':'录音中'):'已保存';
+  $('detail-state').classList.toggle('active',row.status==='active');
   transcriptLines=[];$('live-state').hidden=row.status!=='active';$('live-state').textContent='正在录音，停顿后文字会实时出现在下面。';
-  $('player').pause();$('player').removeAttribute('src');$('player').hidden=row.status==='active';if(audioURL)URL.revokeObjectURL(audioURL);audioURL=null;
+  $('player').pause();$('player').removeAttribute('src');$('player').hidden=row.status==='active';
+  $('download-audio').disabled=true;if(audioURL)URL.revokeObjectURL(audioURL);audioURL=null;
   if(row.status!=='active'){
     const response=await fetch(base+'/client/v1/recordings/'+row.id+'/audio',{credentials:'omit',headers:{Authorization:'Bearer '+token}});
-    if(response.ok){audioURL=URL.createObjectURL(await response.blob());$('player').src=audioURL;}
+    if(response.ok){audioURL=URL.createObjectURL(await response.blob());$('player').src=audioURL;$('player').load();$('download-audio').disabled=false;}
   }
-  const transcript=await api('recordings/'+row.id+'/transcript');transcriptLines=(transcript.text||'').split('\n').filter(Boolean);renderTranscript();
+  const transcript=await api('recordings/'+row.id+'/transcript');transcriptLines=normalizeTranscript(transcript);renderTranscript();
   $('minutes-generate').disabled=row.status==='active';
   try{const data=await api('meeting-templates');$('templates').replaceChildren();for(const t of data.templates){const option=document.createElement('option');option.value=t.template_id;option.textContent=t.name;$('templates').append(option);}}catch(e){error(e);}
   await minutes();
 }
-
+function transcriptEmpty(title,hint){
+  const box=document.createElement('div');box.className='transcript-empty';
+  const strong=document.createElement('strong');strong.textContent=title;box.append(strong);
+  const p=document.createElement('p');p.textContent=hint;box.append(p);return box;
+}
 function renderTranscript(){
-  const active=selected?.status==='active';
-  $('transcript').textContent=transcriptLines.length?transcriptLines.join('\n'):(active?'正在聆听，停顿后会实时出现文字…':'暂无可用转写。');
+  const target=$('transcript');target.replaceChildren();
+  $('export-transcript').disabled=!transcriptLines.length;
+  if(!transcriptLines.length){
+    target.append(transcriptEmpty(selected?.status==='active'?'正在聆听…':'还没有文字',
+      selected?.status==='active'?'声音正在保存；文字会按自然停顿陆续出现。':'这条录音还没有可用的转写。'));
+    return;
+  }
+  transcriptLines.forEach((line,index)=>{
+    const row=document.createElement('div');row.className='transcript-line';row.dataset.index=index;
+    if(line.elapsed_ms!==null)row.dataset.elapsed=line.elapsed_ms;
+    if(line.stamp){const time=document.createElement('time');time.textContent='['+line.stamp+']';row.append(time);}
+    if(line.speaker){const speaker=document.createElement('span');speaker.className='speaker';speaker.textContent=line.speaker;row.append(speaker);}
+    const text=document.createElement('span');text.className='text';text.textContent=line.text;row.append(text);
+    if(selected?.status==='active'||line.elapsed_ms===null)row.classList.add('unseekable');
+    else row.onclick=()=>{$('player').currentTime=line.elapsed_ms/1000;$('player').play().catch(()=>{});};
+    target.append(row);
+  });
+}
+function highlightTranscriptLine(){
+  if(!selected||selected.status==='active')return;
+  const rows=[...$('transcript').querySelectorAll('.transcript-line')];if(!rows.length)return;
+  const at=$('player').currentTime*1000;let active=-1;
+  rows.forEach((row,index)=>{const elapsed=Number(row.dataset.elapsed);if(Number.isFinite(elapsed)&&elapsed<=at)active=index;});
+  rows.forEach((row,index)=>row.classList.toggle('active',index===active));
 }
 function applyTranscript(event){
   if(!selected||event.recording_id!==selected.id)return;
   const index=(Number(event.line)||1)-1;
   if(event.merged){
-    if(index>=0&&index<transcriptLines.length)transcriptLines[index]=event.text;
+    if(index>=0&&index<transcriptLines.length)transcriptLines[index]={...transcriptLines[index],...transcriptObject(event)};
     else{reloadTranscript(selected).catch(error);return;}
-  }else if(index===transcriptLines.length)transcriptLines.push(event.text);
-  else if(index<transcriptLines.length)transcriptLines[index]=event.text;
+  }else if(index===transcriptLines.length)transcriptLines.push(transcriptObject(event));
+  else if(index<transcriptLines.length)transcriptLines[index]={...transcriptLines[index],...transcriptObject(event)};
   else{reloadTranscript(selected).catch(error);return;}
-  renderTranscript();
+  renderTranscript();highlightTranscriptLine();
 }
 async function reloadTranscript(row){
-  const transcript=await api('recordings/'+row.id+'/transcript');transcriptLines=(transcript.text||'').split('\n').filter(Boolean);renderTranscript();
+  const transcript=await api('recordings/'+row.id+'/transcript');transcriptLines=normalizeTranscript(transcript);renderTranscript();highlightTranscriptLine();
 }
 async function minutes(){
   if(!selected)return;
@@ -165,6 +229,18 @@ $('start-recording').onclick=async()=>{try{await audio.microphone();send({type:'
 $('pause-recording').onclick=()=>send({type:recording?.paused?'recording.resume':'recording.pause'});
 $('stop-recording').onclick=()=>send({type:'recording.stop'});
 $('refresh-recordings').onclick=()=>recordings().catch(error);
+$('player').addEventListener('timeupdate',highlightTranscriptLine);
+$('download-audio').onclick=()=>{
+  if(!audioURL)return;
+  const link=document.createElement('a');link.href=audioURL;link.download='recording-'+selected?.id+'.wav';link.click();
+};
+$('export-transcript').onclick=()=>{
+  const body=transcriptLines.map(line=>[line.stamp?'['+line.stamp+']':'',line.speaker?line.speaker+':':'',line.text].filter(Boolean).join(' ')).join('\n');
+  if(!body)return;
+  const url=URL.createObjectURL(new Blob([body+'\n'],{type:'text/plain;charset=utf-8'}));
+  const link=document.createElement('a');link.href=url;link.download='transcript-'+selected?.id+'.txt';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
 $('minutes-refresh').onclick=()=>minutes().catch(error);
 $('minutes-generate').onclick=async()=>{if(!selected)return;try{await api('recordings/'+selected.id+'/minutes',{method:'POST',body:JSON.stringify({template_id:$('templates').value})});await minutes();}catch(e){error(e);}};
 window.addEventListener('pagehide',()=>{disconnect();if(audioURL)URL.revokeObjectURL(audioURL);});

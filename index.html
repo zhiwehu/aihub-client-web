@@ -8,15 +8,16 @@
 <section id="recordings-page" class="recordings-page" aria-label="会议录音" hidden>
 <section class="record-control"><div><p class="eyebrow">留下声音，也留下重点</p><h2>把注意力留给会议</h2><p class="hint">点击开始才会保存音频；暂停期间不记录声音。</p></div><p id="recording-state" role="status">尚未开始</p><div class="actions"><button id="start-recording" disabled>开始录音</button><button id="pause-recording" class="subtle" disabled>暂停</button><button id="stop-recording" class="subtle" disabled>结束并保存</button></div></section>
 <div class="recordings-layout">
-<section class="record-list"><div class="section-heading"><h2>录音历史</h2><button id="refresh-recordings" class="subtle" disabled>刷新列表</button></div><div id="recordings"><p class="hint">连接后查看你的录音。</p></div></section>
+<section class="record-list"><div class="section-heading"><h2>录音历史</h2><span class="tag" id="recordings-count">0 个</span><button id="refresh-recordings" class="subtle" disabled>刷新列表</button></div><div id="recordings"><p class="hint">连接后查看你的录音。</p></div></section>
 <section class="panel recording-detail" id="detail">
 <div id="detail-empty" class="detail-empty"><h2>选择一条录音</h2><p class="hint">左侧是录音历史，点击一条查看文字、播放和会议纪要。</p></div>
 <div id="detail-body" hidden>
-<h2 id="detail-title">录音详情</h2>
+<header class="recording-detail-head"><div class="recording-detail-heading"><p class="eyebrow" id="detail-date">—</p><h2 id="detail-title">录音详情</h2><p class="hint" id="detail-meta">—</p></div><span class="tag" id="detail-state">已保存</span></header>
 <p id="live-state" class="hint" hidden>正在录音，停顿后文字会实时出现在下面。</p>
 <audio id="player" controls></audio>
+<div class="actions detail-actions"><button id="download-audio" class="subtle" type="button" disabled>下载音频</button><button id="export-transcript" class="subtle" type="button" disabled>导出文字</button></div>
 <h3>文字记录</h3>
-<pre id="transcript" aria-live="polite"></pre>
+<div id="transcript" class="transcript-lines" aria-live="polite"></div>
 <h3>会议纪要</h3>
 <div class="actions"><label>纪要模板<select id="templates"></select></label><button id="minutes-generate">生成纪要</button><button id="minutes-refresh" class="subtle">刷新纪要</button></div>
 <pre id="minutes"></pre>
