@@ -5,3 +5,15 @@
 .music-panel{max-width:760px;margin:0 auto 12px;border:1px solid var(--line);border-radius:10px;padding:12px 16px;background:#edf2e9;display:flex;justify-content:space-between;align-items:center;gap:12px}.music-panel>div:first-child{min-width:0}.music-panel strong{display:block;overflow-wrap:anywhere;font-size:13px}.music-controls{display:flex;align-items:center;gap:8px}.music-controls label{font-size:10px;gap:0}.music-controls input{width:80px;padding:0}.music-controls button{font-size:12px;padding:8px 12px}@media(max-width:540px){.music-panel{flex-wrap:wrap}.music-controls{width:100%;justify-content:flex-end}}
 
 .music-controls{flex-wrap:wrap}
+
+/* recording workbench: history on the left, detail and live text on the right */
+.recordings-layout{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:24px;align-items:start;margin-top:24px}
+.record-list{margin:0;min-width:0}
+#recordings button{display:block;width:100%}
+#recordings button.active{border-color:var(--green);background:#eef5ee}
+#recordings button.selected{box-shadow:0 0 0 2px #285d4d33}
+.recording-detail{min-height:280px;min-width:0}
+.detail-empty{padding:40px 8px;text-align:center}
+#live-state{color:var(--green);margin:8px 0}
+#transcript{min-height:140px;max-height:48vh;overflow:auto;background:#f7f9f5;border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+@media(max-width:900px){.recordings-layout{grid-template-columns:1fr}}

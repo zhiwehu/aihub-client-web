@@ -12,7 +12,7 @@ function page(){
   for(const a of document.querySelectorAll('[data-page]')){if(a.dataset.page===name)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');}
 }
 window.addEventListener('hashchange',page);page();
-let base=location.origin, token='', socket, sid, resume, ready=false, recording=null, selected=null, audioURL=null, ping, poll;
+let base=location.origin, token='', socket, sid, resume, ready=false, recording=null, selected=null, audioURL=null, ping, poll, transcriptLines=[];
 const audio=new ClientAudio(send, packet=>{
   if(ready&&socket?.readyState===WebSocket.OPEN){
     if(socket.bufferedAmount>64000){disconnect();error(Error('音频上传积压，请重新连接。'));return;}
@@ -56,20 +56,47 @@ async function recordings(){
   const data=await api('recordings');$('recordings').replaceChildren();
   recording=data.recordings.find(r=>r.session_id===sid&&r.status==='active')||null;controls();
   if(!data.recordings.length)$('recordings').textContent='还没有录音。';
-  for(const row of data.recordings){const b=document.createElement('button');b.textContent=new Date(row.started_at*1000).toLocaleString()+' · '+(row.status==='active'?(row.paused?'已暂停':'录音中'):(row.samples?'已保存':'已结束 · 无音频'));
-    b.onclick=()=>openRecording(row).catch(error);$('recordings').append(b);}
+  for(const row of data.recordings){
+    const b=document.createElement('button');
+    b.textContent=new Date(row.started_at*1000).toLocaleString()+' · '+(row.status==='active'?(row.paused?'已暂停':'录音中'):(row.samples?'已保存':'已结束 · 无音频'));
+    b.className=(row.id===recording?.id?'active ':'')+(row.id===selected?.id?'selected':'');
+    b.onclick=()=>openRecording(row).catch(error);$('recordings').append(b);
+  }
+  if(selected){const fresh=data.recordings.find(r=>r.id===selected.id);if(fresh)selected={...selected,...fresh};}
+  if(recording&&!selected)await openRecording(recording).catch(error);
 }
 async function openRecording(row){
-  selected=row;$('detail').hidden=false;$('detail-title').textContent='录音 · '+new Date(row.started_at*1000).toLocaleString();
-  $('player').pause();$('player').removeAttribute('src');if(audioURL)URL.revokeObjectURL(audioURL);audioURL=null;
+  selected=row;$('detail').hidden=false;$('detail-empty').hidden=true;$('detail-body').hidden=false;
+  $('detail-title').textContent='录音 · '+new Date(row.started_at*1000).toLocaleString();
+  transcriptLines=[];$('live-state').hidden=row.status!=='active';$('live-state').textContent='正在录音，停顿后文字会实时出现在下面。';
+  $('player').pause();$('player').removeAttribute('src');$('player').hidden=row.status==='active';if(audioURL)URL.revokeObjectURL(audioURL);audioURL=null;
   if(row.status!=='active'){
     const response=await fetch(base+'/client/v1/recordings/'+row.id+'/audio',{credentials:'omit',headers:{Authorization:'Bearer '+token}});
     if(response.ok){audioURL=URL.createObjectURL(await response.blob());$('player').src=audioURL;}
   }
-  const transcript=await api('recordings/'+row.id+'/transcript');$('transcript').textContent=transcript.text||'暂无可用转写。';
+  const transcript=await api('recordings/'+row.id+'/transcript');transcriptLines=(transcript.text||'').split('\n').filter(Boolean);renderTranscript();
   $('minutes-generate').disabled=row.status==='active';
   try{const data=await api('meeting-templates');$('templates').replaceChildren();for(const t of data.templates){const option=document.createElement('option');option.value=t.template_id;option.textContent=t.name;$('templates').append(option);}}catch(e){error(e);}
   await minutes();
+}
+
+function renderTranscript(){
+  const active=selected?.status==='active';
+  $('transcript').textContent=transcriptLines.length?transcriptLines.join('\n'):(active?'正在聆听，停顿后会实时出现文字…':'暂无可用转写。');
+}
+function applyTranscript(event){
+  if(!selected||event.recording_id!==selected.id)return;
+  const index=(Number(event.line)||1)-1;
+  if(event.merged){
+    if(index>=0&&index<transcriptLines.length)transcriptLines[index]=event.text;
+    else{reloadTranscript(selected).catch(error);return;}
+  }else if(index===transcriptLines.length)transcriptLines.push(event.text);
+  else if(index<transcriptLines.length)transcriptLines[index]=event.text;
+  else{reloadTranscript(selected).catch(error);return;}
+  renderTranscript();
+}
+async function reloadTranscript(row){
+  const transcript=await api('recordings/'+row.id+'/transcript');transcriptLines=(transcript.text||'').split('\n').filter(Boolean);renderTranscript();
 }
 async function minutes(){
   if(!selected)return;
@@ -110,7 +137,20 @@ $('connection').onsubmit=async event=>{
       if(['message.user','reply.final','turn.completed','playback.clear'].includes(e.type))await history();
       if(e.type.startsWith('tool.'))tasks().catch(error);
       if(e.type==='recording.stopped'){audio.stopMic();$('mic').textContent='开启语音';}
-      if(e.type.startsWith('recording.')){if(e.recording)recording=e.recording.status==='active'?e.recording:null;controls();await recordings();if(e.message)$('error').textContent=e.message;}
+      if(e.type==='recording.transcript'){applyTranscript(e);}
+      else if(e.type==='recording.transcription_unavailable'){if(selected?.status==='active'){$('live-state').hidden=false;$('live-state').textContent=e.message||'实时转写暂时不可用。';}}
+      else if(e.type==='recording.started'){
+        if(e.recording)recording=e.recording.status==='active'?e.recording:null;
+        controls();await recordings();if(recording)await openRecording(recording).catch(error);if(e.message)$('error').textContent=e.message;
+      }else if(e.type==='recording.stopped'){
+        if(e.recording)recording=null;controls();await recordings();
+        if(selected&&e.recording&&selected.id===e.recording.id){selected={...selected,...e.recording};await openRecording(e.recording).catch(error);}
+        if(e.message)$('error').textContent=e.message;
+      }else if(e.type.startsWith('recording.')){
+        if(e.recording)recording=e.recording.status==='active'?e.recording:null;
+        if(e.type==='recording.diarized'&&selected&&selected.id===e.recording_id)await reloadTranscript(selected).catch(error);
+        controls();await recordings();if(e.message)$('error').textContent=e.message;
+      }
       await audio.event(e);
     }catch(e){error(e);}};
     ws.onclose=()=>{if(socket!==ws)return;$('music-panel').hidden=true;$('mic').textContent='开启语音';ready=false;clearInterval(ping);clearInterval(poll);audio.clear();audio.stopMic();controls();$('status').textContent='连接已断开，请重新连接。';};
