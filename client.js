@@ -123,7 +123,12 @@ async function openRecording(row){
   $('detail-state').classList.toggle('active',row.status==='active');
   transcriptLines=[];$('live-state').hidden=row.status!=='active';$('live-state').textContent='正在录音，停顿后文字会实时出现在下面。';
   $('player').pause();$('player').removeAttribute('src');$('player').hidden=row.status==='active';
-  $('download-raw').disabled=true;$('download-ready').disabled=row.status==='active';
+  $('download-raw').disabled=true;
+  // A recording without detected speech has nothing to denoise; keep the button
+  // disabled instead of letting the request fail with a bare 404.
+  const readyable=row.status!=='active'&&row.speech_available!==false;
+  $('download-ready').disabled=!readyable;
+  $('download-ready').title=row.speech_available===false?'这条录音没有检测到语音，无法生成精简音频':'';
   if(audioURL)URL.revokeObjectURL(audioURL);audioURL=null;
   if(row.status!=='active'){
     const response=await fetch(base+'/client/v1/recordings/'+row.id+'/audio',{credentials:'omit',headers:{Authorization:'Bearer '+token}});
@@ -164,7 +169,8 @@ function renderTranscript(){
   $('export-transcript').disabled=!transcriptLines.length;
   if(!transcriptLines.length){
     target.append(transcriptEmpty(selected?.status==='active'?'正在聆听…':'还没有文字',
-      selected?.status==='active'?'声音正在保存；文字会按自然停顿陆续出现。':'这条录音还没有可用的转写。'));
+      selected?.status==='active'?'声音正在保存；文字会按自然停顿陆续出现。':
+      selected?.speech_available===false?'这段录音没有检测到语音，可能麦克风没有收到声音。':'这条录音还没有可用的转写。'));
     return;
   }
   transcriptLines.forEach((line,index)=>{
@@ -283,9 +289,10 @@ $('download-ready').onclick=async()=>{
   const button=$('download-ready'),label=button.textContent;button.disabled=true;button.textContent='生成中…';
   try{
     const response=await fetch(base+'/client/v1/recordings/'+selected.id+'/ready',{credentials:'omit',headers:{Authorization:'Bearer '+token}});
+    if(response.status===404)throw Error('这条录音没有检测到可用的语音，无法生成精简音频。');
     if(!response.ok)throw Error('精简音频生成失败（'+response.status+'）');
     saveBlob(await response.blob(),'recording-'+selected.id+'-ready.wav');
-  }catch(e){error(e);}finally{button.textContent=label;button.disabled=selected.status==='active';}
+  }catch(e){error(e);}finally{button.textContent=label;button.disabled=!selected||selected.status==='active'||selected.speech_available===false;}
 };
 $('export-transcript').onclick=()=>{
   const body=transcriptLines.map(line=>[line.stamp?'['+line.stamp+']':'',line.speaker?line.speaker+':':'',line.text].filter(Boolean).join(' ')).join('\n');
