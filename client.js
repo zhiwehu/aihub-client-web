@@ -32,12 +32,14 @@ function controls(){
   $('disconnect').disabled=!socket;
   $('connection-badge').textContent=ready?'已连接':'未连接';$('connection-badge').classList.toggle('connected',ready);
   $('start-recording').disabled=!ready||!!recording;
+  $('empty-start-recording').disabled=!ready||!!recording;
   $('pause-recording').disabled=!ready||!recording;
   $('stop-recording').disabled=!ready||!recording;
   $('pause-recording').textContent=recording?.paused?'继续':'暂停';
   $('send').disabled=!ready||!!recording;
   $('mic').disabled=!ready||!!recording;
-  $('recording-state').textContent=recording?(recording.paused?'已暂停':'录音中'):'尚未开始 / 已结束';
+  $('recording-state').textContent=recording?(recording.paused?'已暂停':'录音中'):'未开始';
+  $('recording-state').classList.toggle('active',!!recording);
 }
 function disconnect(){
   $('mic').textContent='开启语音';$('music-panel').hidden=true;
@@ -225,7 +227,9 @@ $('disconnect').onclick=disconnect;
 $('text-form').onsubmit=event=>{event.preventDefault();const text=$('text').value.trim();if(text&&ready&&!recording){send({type:'input.text',text});$('text').value='';}};
 $('mic').onclick=async()=>{try{if($('mic').textContent==='关闭语音'){audio.stopMic();$('mic').textContent='开启语音';return;}await audio.microphone();send({type:'session.activate'});$('mic').textContent='关闭语音';}catch(e){error(e);}};
 $('interrupt').onclick=()=>{audio.clear();send({type:'interrupt'});};
-$('start-recording').onclick=async()=>{try{await audio.microphone();send({type:'recording.start'});}catch(e){error(e);}};
+async function startRecording(){try{await audio.microphone();send({type:'recording.start'});}catch(e){error(e);}}
+$('start-recording').onclick=startRecording;
+$('empty-start-recording').onclick=startRecording;
 $('pause-recording').onclick=()=>send({type:recording?.paused?'recording.resume':'recording.pause'});
 $('stop-recording').onclick=()=>send({type:'recording.stop'});
 $('refresh-recordings').onclick=()=>recordings().catch(error);

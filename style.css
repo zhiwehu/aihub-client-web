@@ -41,3 +41,27 @@
 .transcript-line{display:flex;gap:8px;align-items:baseline}
 .transcript-line .text{flex:1;min-width:0}
 .transcript-empty p{margin-top:4px;font-size:12px}
+
+/* one-screen recordings workbench: no page scroll, history and transcript own their scroll */
+#recordings-page{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;padding:24px 32px}
+.recordings-layout{flex:1;min-height:0;display:grid;grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:20px;align-items:stretch;margin-top:0}
+.record-list{display:flex;flex-direction:column;min-height:0;height:100%;overflow:hidden;margin:0;padding:16px}
+.record-list .section-heading{flex:0 0 auto;margin-bottom:8px}
+.history-heading{display:flex;align-items:center;gap:8px;min-width:0}
+.recording-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;flex:0 0 auto;margin:0 0 8px}
+.recording-actions button{min-height:36px;padding:8px 12px;font-size:12px}
+.recording-actions #recording-state{margin-left:auto}
+#recordings{flex:1;min-height:0;overflow-y:auto;align-content:start}
+.recording-detail{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:18px}
+#detail-body{display:flex;flex-direction:column;flex:1;min-height:0}
+.recording-detail-head,.detail-actions,#player,#live-state,#detail-body>h3{flex:0 0 auto}
+#player{margin:8px 0}
+#transcript{flex:1;min-height:0;max-height:none;overflow-y:auto}
+.minutes-panel{flex:0 0 auto;max-height:40%;overflow:auto;margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
+.minutes-panel summary{cursor:pointer;color:var(--green);font-size:13px;font-weight:600;padding:4px 0}
+.minutes-panel .actions{margin:8px 0}
+#minutes{margin:8px 0 0;max-height:30vh;overflow:auto}
+.detail-empty{flex:1;display:grid;place-items:center;text-align:center;padding:20px}
+.detail-empty button{margin-top:16px}
+.tag.active{color:var(--green);background:#eef5ee;border-color:#cfe0d2}
+@media(max-width:900px){#recordings-page{padding:16px}.recordings-layout{grid-template-columns:1fr}}
