@@ -1,1 +1,1 @@
-{"name":"aihub-client-web","version":"0.1.0","private":true,"type":"module","scripts":{"build":"node scripts/build.mjs","test":"node --test tests/*.mjs","dev":"node scripts/dev.mjs"}}
+{"name":"aihub-client-web","version":"0.1.0","private":true,"type":"module","scripts":{"build":"node scripts/build.mjs","test":"node --test tests/*.mjs","dev":"node scripts/dev.mjs","serve":"node scripts/serve.mjs"}}

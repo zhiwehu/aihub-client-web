@@ -22,7 +22,12 @@ const audio=new ClientAudio(send, packet=>{
     socket.send(packet);
   }
 });
-$('server').value=base;
+// A page served on this machine's localhost may talk to a server elsewhere on
+// the LAN; ?server= prefills it and the last address is remembered locally.
+const params=new URLSearchParams(location.search);
+let remembered='';
+try{remembered=localStorage.getItem('aihub-server')||'';}catch{}
+$('server').value=params.get('server')||remembered||base;
 function error(e){$('error').textContent=e.message||String(e);}
 function send(value){if(ready&&socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify(value));}
 async function api(path, options={}){
@@ -224,6 +229,7 @@ $('connection').onsubmit=async event=>{
     if(!['http:','https:'].includes(next.protocol)||next.username||next.password||next.search||next.hash)throw Error('请输入无凭证的 HTTP/HTTPS 服务端地址。');
     if(base!==next.origin||token!==$('token').value.trim()){sid=resume=null;selected=null;}
     base=next.origin;token=$('token').value.trim();
+    try{localStorage.setItem('aihub-server',base);}catch{}
     await api('sessions');await audio.ready();
     const ws=socket=new WebSocket(base.replace(/^http/,'ws')+'/ws');controls();$('status').textContent='正在连接…';
     ws.onopen=()=>{if(socket!==ws)return;ws.send(JSON.stringify({type:'hello',version:1,token,wake_mode:'manual',...(sid?{session_id:sid,resume_token:resume}:{}),audio:{format:'pcm_s16le',sample_rate:16000},capabilities:{echo_cancellation:true}}));};
