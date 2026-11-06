@@ -32,11 +32,15 @@ function controls(){
   for(const id of ['send','mic','interrupt','refresh-recordings'])$(id).disabled=!ready;
   $('disconnect').disabled=!socket;
   $('connection-badge').textContent=ready?'已连接':'未连接';$('connection-badge').classList.toggle('connected',ready);
-  $('start-recording').disabled=!ready||!!recording;
-  $('empty-start-recording').disabled=!ready||!!recording;
-  $('pause-recording').disabled=!ready||!recording;
+  // One transport for the whole page: start ⇄ pause/resume, plus stop only while
+  // a recording exists. Per-recording buttons would duplicate this state.
+  const toggle=$('record-toggle'),state=!recording?'idle':recording.paused?'paused':'recording';
+  toggle.disabled=!ready;
+  toggle.dataset.state=state;
+  toggle.textContent={idle:'开始录音',paused:'继续',recording:'暂停'}[state];
+  toggle.setAttribute('aria-pressed',state==='recording'?'true':'false');
+  $('stop-recording').hidden=!recording;
   $('stop-recording').disabled=!ready||!recording;
-  $('pause-recording').textContent=recording?.paused?'继续':'暂停';
   $('send').disabled=!ready||!!recording;
   $('mic').disabled=!ready||!!recording;
   $('recording-state').textContent=recording?(recording.paused?'已暂停':'录音中'):'未开始';
@@ -100,11 +104,20 @@ async function recordings(){
   if(selected){const fresh=data.recordings.find(r=>r.id===selected.id);if(fresh)selected={...selected,...fresh};}
   if(recording&&!selected)await openRecording(recording).catch(error);
 }
+function autoTitle(row){
+  // The backend has no name field yet, so derive one from the transcript: the
+  // first spoken line is the closest thing to a topic until summaries exist.
+  const line=transcriptLines.map(item=>String(item.text||'').trim()).find(Boolean);
+  if(!line)return recordingSource(row)||'录音详情';
+  const clean=line.replace(/[。！？!?，,；;：:、\s]+$/,'');
+  return clean.length>26?clean.slice(0,26)+'…':clean;
+}
+function updateTitle(row){if(selected&&row&&selected.id===row.id)$('detail-title').textContent=autoTitle(row);}
 async function openRecording(row){
   selected=row;$('detail').hidden=false;$('detail-empty').hidden=true;$('detail-body').hidden=false;
-  $('detail-date').textContent=new Date(row.started_at*1000).toLocaleString();
   $('detail-title').textContent=recordingSource(row)||'录音详情';
-  $('detail-meta').textContent=[formatDuration(row.duration_ms||(row.samples?row.samples/16000*1000:0)),
+  $('detail-meta').textContent=[new Date(row.started_at*1000).toLocaleString(),
+    formatDuration(row.duration_ms||(row.samples?row.samples/16000*1000:0)),
     row.speaker_count?row.speaker_count+' 人':'',recordingSource(row)].filter(Boolean).join(' · ');
   $('detail-state').textContent=row.status==='active'?(row.paused?'已暂停':'录音中'):'已保存';
   $('detail-state').classList.toggle('active',row.status==='active');
@@ -117,7 +130,7 @@ async function openRecording(row){
     if(response.ok){audioURL=URL.createObjectURL(await response.blob());$('player').src=audioURL;$('player').load();$('download-raw').disabled=false;}
   }
   setRecordingTab('transcript');
-  const transcript=await api('recordings/'+row.id+'/transcript');transcriptLines=normalizeTranscript(transcript);renderTranscript();
+  const transcript=await api('recordings/'+row.id+'/transcript');transcriptLines=normalizeTranscript(transcript);renderTranscript();updateTitle(row);
   $('minutes-generate').disabled=row.status==='active';
   try{const data=await api('meeting-templates');$('templates').replaceChildren();for(const t of data.templates){const option=document.createElement('option');option.value=t.template_id;option.textContent=t.name;$('templates').append(option);}}catch(e){error(e);}
   await minutes();
@@ -250,9 +263,10 @@ $('text-form').onsubmit=event=>{event.preventDefault();const text=$('text').valu
 $('mic').onclick=async()=>{try{if($('mic').textContent==='关闭语音'){audio.stopMic();$('mic').textContent='开启语音';return;}await audio.microphone();send({type:'session.activate'});$('mic').textContent='关闭语音';}catch(e){error(e);}};
 $('interrupt').onclick=()=>{audio.clear();send({type:'interrupt'});};
 async function startRecording(){try{await audio.microphone();send({type:'recording.start'});}catch(e){error(e);}}
-$('start-recording').onclick=startRecording;
-$('empty-start-recording').onclick=startRecording;
-$('pause-recording').onclick=()=>send({type:recording?.paused?'recording.resume':'recording.pause'});
+$('record-toggle').onclick=async()=>{
+  if(recording){send({type:recording.paused?'recording.resume':'recording.pause'});return;}
+  await startRecording();
+};
 $('stop-recording').onclick=()=>send({type:'recording.stop'});
 $('refresh-recordings').onclick=()=>recordings().catch(error);
 $('player').addEventListener('timeupdate',highlightTranscriptLine);

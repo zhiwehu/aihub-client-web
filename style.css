@@ -6,78 +6,75 @@
 
 .music-controls{flex-wrap:wrap}
 
-/* recording workbench: history on the left, detail and live text on the right */
-.recordings-layout{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:24px;align-items:start;margin-top:24px}
-.record-list{margin:0;min-width:0}
-#recordings button{display:block;width:100%}
+/* ---------- recordings workbench: page transport + history/detail ---------- */
+#recordings-page{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;padding:20px 28px 24px;gap:14px}
+.recordings-toolbar{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.recordings-toolbar .transport{display:flex;align-items:center;gap:8px}
+#record-toggle{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 18px;font-size:14px;font-weight:600}
+#record-toggle::before{content:'●';font-size:10px;line-height:1}
+#record-toggle[data-state="recording"]{background:#a5442f;border-color:#a5442f}
+#record-toggle[data-state="recording"]::before{content:'❚❚';font-size:9px;letter-spacing:-1px}
+#record-toggle[data-state="paused"]::before{content:'▶';font-size:10px}
+#stop-recording{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 16px;font-size:13px}
+#stop-recording::before{content:'■';font-size:9px;color:#a5442f}
+#stop-recording[hidden]{display:none!important}
+#recording-state{margin-left:auto}
+#recording-state.active{color:#a5442f;border-color:#e2c3b8;background:#fbeee9}
+
+.recordings-layout{flex:1;min-height:0;display:grid;grid-template-columns:minmax(240px,300px) minmax(0,1fr);gap:16px}
+.record-list{display:flex;flex-direction:column;min-height:0;height:100%;overflow:hidden;margin:0;padding:14px}
+.record-list .section-heading{flex:0 0 auto;margin:0 0 10px}
+.history-heading{display:flex;align-items:center;gap:8px;min-width:0}
+.history-heading h2{font-size:16px}
+.tag{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--muted);white-space:nowrap}
+#recordings{flex:1;min-height:0;overflow-y:auto;display:grid;gap:8px;align-content:start}
+#recordings button{display:block;width:100%;text-align:left;background:white;color:inherit;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.55;min-height:0}
 #recordings button.active{border-color:var(--green);background:#eef5ee}
 #recordings button.selected{box-shadow:0 0 0 2px #285d4d33}
-.recording-detail{min-height:280px;min-width:0}
-.detail-empty{padding:40px 8px;text-align:center}
-#live-state{color:var(--green);margin:8px 0}
-#transcript{min-height:140px;max-height:48vh;overflow:auto;background:#f7f9f5;border:1px solid var(--line);border-radius:8px;padding:12px 16px}
-@media(max-width:900px){.recordings-layout{grid-template-columns:1fr}}
 
-/* recording detail: header, seekable transcript lines, actions */
-.recording-detail-head{display:flex;justify-content:space-between;align-items:start;gap:16px;margin-bottom:16px}
+.recording-detail{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:16px 18px}
+.detail-empty{flex:1;display:grid;place-items:center;text-align:center;padding:20px}
+#detail-body{display:flex;flex-direction:column;flex:1;min-height:0;gap:10px}
+.recording-detail-head{flex:0 0 auto;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .recording-detail-heading{min-width:0}
-.recording-detail-heading .eyebrow{margin-bottom:4px}
-.recording-detail-heading h2{margin:0 0 6px;overflow-wrap:anywhere}
-.recording-detail-heading .hint{margin:0}
-.tag{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:20px;padding:4px 10px;font-size:11px;color:var(--muted);white-space:nowrap}
+.recording-detail-heading h2{margin:0;font-size:18px;line-height:1.35;letter-spacing:-.02em;overflow-wrap:anywhere}
+.recording-detail-heading .hint{margin:3px 0 0;font-size:12px;line-height:1.55}
 #detail-state.active{color:var(--green);background:#eef5ee;border-color:#cfe0d2}
-.detail-actions{margin:8px 0 0}
-.transcript-lines{min-height:140px;max-height:48vh;overflow:auto;background:#f7f9f5;border:1px solid var(--line);border-radius:8px;padding:8px 4px}
-.transcript-line{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:8px;align-items:baseline;padding:6px 12px;border-radius:6px;line-height:1.75;cursor:pointer}
+
+.recording-notice{margin:0;padding:7px 10px;border:1px solid #d6e2d2;border-radius:6px;background:#f0f6ec;color:#4b6554;font-size:11px;line-height:1.6}
+.recording-notice.error{border-color:#dfb69a;background:#f7ebe4;color:#843f2b}
+
+/* one compact row: player grows, file actions sit on the right */
+.detail-toolbar{flex:0 0 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#player{flex:1 1 220px;min-width:170px;height:34px;margin:0}
+.detail-actions{display:flex;flex-wrap:wrap;gap:6px;margin:0;flex:0 0 auto}
+.detail-actions button{min-height:32px;padding:5px 10px;font-size:12px}
+
+.recording-tabs{flex:0 0 auto;display:flex;gap:2px;border-bottom:1px solid var(--line);margin:2px 0 0}
+.recording-tabs button{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;border-radius:0;padding:7px 12px;min-height:34px;font-size:13px}
+.recording-tabs button[aria-selected="true"]{color:var(--green);border-bottom-color:var(--green);font-weight:600}
+
+.recording-tab{display:flex;flex-direction:column;flex:1;min-height:0;gap:8px;padding-top:4px}
+#tab-transcript[hidden],#tab-summary[hidden]{display:none!important}
+#live-state{flex:0 0 auto;margin:0;color:var(--green)}
+
+.transcript-lines{flex:1;min-height:0;overflow-y:auto;background:#f7f9f5;border:1px solid var(--line);border-radius:8px;padding:6px 4px}
+.transcript-line{display:flex;gap:8px;align-items:baseline;padding:6px 12px;border-radius:6px;line-height:1.7;cursor:pointer}
 .transcript-line:hover{background:#eef5ee}
 .transcript-line.active{background:#e2eee4}
 .transcript-line.unseekable{cursor:default}
 .transcript-line time{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px;white-space:nowrap}
 .transcript-line .speaker{color:var(--green);font-size:12px;font-weight:600;white-space:nowrap}
-.transcript-empty{padding:24px 12px;text-align:center;color:var(--muted)}
-.transcript-empty strong{display:block;color:var(--ink,var(--green));font-weight:600;margin-bottom:4px}
-
-/* transcript rows are flex so lines without timestamps still align */
-.transcript-line{display:flex;gap:8px;align-items:baseline}
 .transcript-line .text{flex:1;min-width:0}
+.transcript-empty{padding:24px 12px;text-align:center;color:var(--muted)}
+.transcript-empty strong{display:block;color:var(--green);font-weight:600;margin-bottom:4px}
 .transcript-empty p{margin-top:4px;font-size:12px}
 
-/* one-screen recordings workbench: no page scroll, history and transcript own their scroll */
-#recordings-page{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;padding:24px 32px}
-.recordings-layout{flex:1;min-height:0;display:grid;grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:20px;align-items:stretch;margin-top:0}
-.record-list{display:flex;flex-direction:column;min-height:0;height:100%;overflow:hidden;margin:0;padding:16px}
-.record-list .section-heading{flex:0 0 auto;margin-bottom:8px}
-.history-heading{display:flex;align-items:center;gap:8px;min-width:0}
-.recording-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;flex:0 0 auto;margin:0 0 8px}
-.recording-actions button{min-height:36px;padding:8px 12px;font-size:12px}
-.recording-actions #recording-state{margin-left:auto}
-#recordings{flex:1;min-height:0;overflow-y:auto;align-content:start}
-.recording-detail{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:18px}
-#detail-body{display:flex;flex-direction:column;flex:1;min-height:0}
-.recording-detail-head,.detail-actions,#player,#live-state,#detail-body>h3{flex:0 0 auto}
-#player{margin:8px 0}
-#transcript{flex:1;min-height:0;max-height:none;overflow-y:auto}
-.minutes-panel{flex:0 0 auto;max-height:40%;overflow:auto;margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
-.minutes-panel summary{cursor:pointer;color:var(--green);font-size:13px;font-weight:600;padding:4px 0}
-.minutes-panel .actions{margin:8px 0}
-#minutes{margin:8px 0 0;max-height:30vh;overflow:auto}
-.detail-empty{flex:1;display:grid;place-items:center;text-align:center;padding:20px}
-.detail-empty button{margin-top:16px}
-.tag.active{color:var(--green);background:#eef5ee;border-color:#cfe0d2}
+/* the summary must own the remaining height instead of a viewport cap */
+#tab-summary .summary-actions{flex:0 0 auto;margin:0;align-items:center}
+#tab-summary .summary-actions label{flex-direction:row;align-items:center;gap:8px;font-size:12px}
+#tab-summary .summary-actions button{min-height:32px;padding:5px 12px;font-size:12px}
+#minutes{flex:1;min-height:0;max-height:none;overflow:auto;margin:0;padding:14px 16px;background:#f7f9f5;border:1px solid var(--line);border-radius:8px}
+
 @media(max-width:900px){#recordings-page{padding:16px}.recordings-layout{grid-template-columns:1fr}}
-
-/* right-side controls and transcript/summary tabs */
-.recording-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px;flex:0 0 auto;margin:8px 0}
-.recording-controls button{min-height:34px;padding:7px 12px;font-size:12px}
-.recording-controls #recording-state{margin-left:auto}
-.recording-tabs{display:flex;gap:4px;flex:0 0 auto;border-bottom:1px solid var(--line);margin:4px 0 0}
-.recording-tabs button{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 12px;min-height:36px;font-size:12px}
-.recording-tabs button[aria-selected="true"]{color:var(--green);border-bottom-color:var(--green);font-weight:600}
-.recording-tab{display:flex;flex-direction:column;flex:1;min-height:0;padding-top:8px}
-#tab-summary .actions{flex:0 0 auto;margin:0 0 8px}
-#minutes{flex:1;min-height:0;overflow:auto;margin:0}
-#tab-summary[hidden],#tab-transcript[hidden]{display:none}
-.record-list .section-heading{margin-bottom:12px}
-
-.recording-notice{margin:0 0 6px;padding:7px 10px;border:1px solid #d6e2d2;border-radius:6px;background:#f0f6ec;color:#4b6554;font-size:11px;line-height:1.6}
-.recording-notice.error{border-color:#dfb69a;background:#f7ebe4;color:#843f2b}
+@media(max-width:540px){#recordings-page{padding:14px 12px;gap:10px}.recordings-toolbar{padding:8px 10px}.detail-toolbar{flex-direction:column;align-items:stretch}#player{flex:1 1 auto}}
