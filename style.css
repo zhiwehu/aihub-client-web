@@ -78,3 +78,6 @@
 #minutes{flex:1;min-height:0;overflow:auto;margin:0}
 #tab-summary[hidden],#tab-transcript[hidden]{display:none}
 .record-list .section-heading{margin-bottom:12px}
+
+.recording-notice{margin:0 0 6px;padding:7px 10px;border:1px solid #d6e2d2;border-radius:6px;background:#f0f6ec;color:#4b6554;font-size:11px;line-height:1.6}
+.recording-notice.error{border-color:#dfb69a;background:#f7ebe4;color:#843f2b}

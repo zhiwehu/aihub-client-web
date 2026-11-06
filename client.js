@@ -10,9 +10,10 @@ function page(){
   $('page-title').textContent={chat:'对话',recordings:'会议录音',connection:'连接设置'}[name];
   $('page-kicker').textContent={chat:'和声桥一起',recordings:'记录每一个重点',connection:'管理当前网页的连接'}[name];
   for(const a of document.querySelectorAll('[data-page]')){if(a.dataset.page===name)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');}
+  $('error').textContent='';
 }
 window.addEventListener('hashchange',page);page();
-let base=location.origin, token='', socket, sid, resume, ready=false, recording=null, selected=null, audioURL=null, ping, poll, transcriptLines=[], recordingTab='transcript';
+let base=location.origin, token='', socket, sid, resume, ready=false, recording=null, selected=null, audioURL=null, ping, poll, transcriptLines=[], recordingTab='transcript', recordingNoticeTimer;
 const audio=new ClientAudio(send, packet=>{
   if(ready&&socket?.readyState===WebSocket.OPEN){
     if(socket.bufferedAmount>64000){disconnect();error(Error('音频上传积压，请重新连接。'));return;}
@@ -121,6 +122,13 @@ async function openRecording(row){
   try{const data=await api('meeting-templates');$('templates').replaceChildren();for(const t of data.templates){const option=document.createElement('option');option.value=t.template_id;option.textContent=t.name;$('templates').append(option);}}catch(e){error(e);}
   await minutes();
 }
+function recordingNotice(message,isError=false){
+  const el=$('recording-notice');
+  clearTimeout(recordingNoticeTimer);
+  if(!message){el.hidden=true;el.textContent='';return;}
+  el.textContent=message;el.hidden=false;el.classList.toggle('error',!!isError);
+  recordingNoticeTimer=setTimeout(()=>{el.hidden=true;el.textContent='';},8000);
+}
 function setRecordingTab(name){
   recordingTab=name;
   for(const button of document.querySelectorAll('[data-recording-tab]')){
@@ -218,18 +226,18 @@ $('connection').onsubmit=async event=>{
       if(e.type.startsWith('tool.'))tasks().catch(error);
       if(e.type==='recording.stopped'){audio.stopMic();$('mic').textContent='开启语音';}
       if(e.type==='recording.transcript'){applyTranscript(e);}
-      else if(e.type==='recording.transcription_unavailable'){if(selected?.status==='active'){$('live-state').hidden=false;$('live-state').textContent=e.message||'实时转写暂时不可用。';}}
+      else if(e.type==='recording.transcription_unavailable'){if(selected?.status==='active'){$('live-state').hidden=false;$('live-state').textContent=e.message||'实时转写暂时不可用。';}if(e.message)recordingNotice(e.message,true);}
       else if(e.type==='recording.started'){
         if(e.recording)recording=e.recording.status==='active'?e.recording:null;
-        controls();await recordings();if(recording)await openRecording(recording).catch(error);if(e.message)$('error').textContent=e.message;
+        controls();await recordings();if(recording)await openRecording(recording).catch(error);if(e.message)recordingNotice(e.message);
       }else if(e.type==='recording.stopped'){
         if(e.recording)recording=null;controls();await recordings();
         if(selected&&e.recording&&selected.id===e.recording.id){selected={...selected,...e.recording};await openRecording(e.recording).catch(error);}
-        if(e.message)$('error').textContent=e.message;
+        if(e.message)recordingNotice(e.message);
       }else if(e.type.startsWith('recording.')){
         if(e.recording)recording=e.recording.status==='active'?e.recording:null;
         if(e.type==='recording.diarized'&&selected&&selected.id===e.recording_id)await reloadTranscript(selected).catch(error);
-        controls();await recordings();if(e.message)$('error').textContent=e.message;
+        controls();await recordings();if(e.message)recordingNotice(e.message,e.type==='recording.finalize_failed');
       }
       await audio.event(e);
     }catch(e){error(e);}};
