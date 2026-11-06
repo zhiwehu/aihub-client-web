@@ -90,9 +90,13 @@ $('connection').onsubmit=async event=>{
     ws.onopen=()=>{if(socket!==ws)return;ws.send(JSON.stringify({type:'hello',version:1,token,wake_mode:'manual',...(sid?{session_id:sid,resume_token:resume}:{}),audio:{format:'pcm_s16le',sample_rate:16000},capabilities:{echo_cancellation:true}}));};
     ws.onmessage=async event=>{if(socket!==ws)return;try{
       const e=JSON.parse(event.data);
-      if(e.type==='hello'){sid=e.session_id;resume=e.resume_token;ready=true;chat.reset(sid);controls();location.hash='#'+previousPage;await history();await recordings();await tasks();ping=setInterval(()=>send({type:'ping'}),20000);poll=setInterval(()=>Promise.all([recordings(),tasks()]).catch(error),3000);$('status').textContent='已连接';}
+      if(e.type==='hello'){sid=e.session_id;resume=e.resume_token;ready=true;send({type:'music.volume.set',volume:Number($('music-volume').value)});chat.reset(sid);controls();location.hash='#'+previousPage;await history();await recordings();await tasks();ping=setInterval(()=>send({type:'ping'}),20000);poll=setInterval(()=>Promise.all([recordings(),tasks()]).catch(error),3000);$('status').textContent='已连接';}
       if(e.type==='error'){if(e.code==='invalid_resume'){sid=resume=null;}throw Error(e.message||e.code);}
       if(e.type==='session.state')$('status').textContent={standby:'已连接 · 待机',listening:'聆听中',thinking:'思考中',speaking:'回复中',recording:'录音中'}[e.state]||e.state;
+      if(e.type==='music.volume'){
+        audio.setMusicVolume(e.volume/100);$('music-volume').value=String(e.volume);
+        send({type:'music.volume.applied',request_id:e.request_id,volume:e.volume});
+      }
       if(e.type==='music.state'){
         if(e.state==='playing')$('status').textContent='音乐播放中';
         else if(e.state==='paused')$('status').textContent='已连接 · 音乐已暂停';
@@ -130,3 +134,6 @@ $('text').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shif
 $('music-pause').onclick=()=>send({type:'music.control',action:$('music-pause').textContent==='继续'?'resume':'pause'});
 $('music-stop').onclick=()=>send({type:'music.control',action:'stop'});
 $('music-volume').oninput=event=>audio.setMusicVolume(Number(event.target.value)/100);
+
+$('music-volume').onchange=event=>send({type:'music.volume.set',volume:Number(event.target.value)});
+$('music-next').onclick=()=>send({type:'music.control',action:'next'});
