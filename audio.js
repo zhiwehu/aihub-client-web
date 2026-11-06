@@ -10,7 +10,14 @@ export class ClientAudio {
   async microphone() {
     if (!globalThis.isSecureContext || !navigator.mediaDevices?.getUserMedia)
       throw Error('麦克风需要 localhost 或 HTTPS 安全连接。');
-    if (this.stream) return;
+    // A cached stream can outlive its device (headphones unplugged, default input
+    // switched). Reusing it produces a recording with zero samples and no error,
+    // so reopen whenever the existing track is no longer live.
+    if (this.stream) {
+      const live = this.stream.getAudioTracks?.().some(track => track.readyState === 'live');
+      if (live) return;
+      this.stopMic();
+    }
     this.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1},video:false});
     try {
       await this.ready();

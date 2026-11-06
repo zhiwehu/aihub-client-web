@@ -14,8 +14,9 @@ function page(){
   $('error').textContent='';
 }
 window.addEventListener('hashchange',page);page();
-let base=location.origin, token='', socket, sid, resume, ready=false, recording=null, selected=null, audioURL=null, ping, poll, transcriptLines=[], recordingTab='transcript', recordingNoticeTimer;
+let base=location.origin, token='', socket, sid, resume, ready=false, recording=null, selected=null, audioURL=null, ping, poll, transcriptLines=[], recordingTab='transcript', recordingNoticeTimer, silenceTimer, audioPackets=0;
 const audio=new ClientAudio(send, packet=>{
+  audioPackets++;
   if(ready&&socket?.readyState===WebSocket.OPEN){
     if(socket.bufferedAmount>64000){disconnect();error(Error('音频上传积压，请重新连接。'));return;}
     socket.send(packet);
@@ -254,6 +255,9 @@ $('connection').onsubmit=async event=>{
         if(e.recording)recording=e.recording.status==='active'?e.recording:null;
         controls();await recordings();if(recording)await openRecording(recording).catch(error);if(e.message)recordingNotice(e.message);
       }else if(e.type==='recording.stopped'){
+        clearTimeout(silenceTimer);
+        if(e.recording&&Number(e.recording.samples)===0)
+          recordingNotice('这次录音没有收到任何音频，可能是麦克风权限或输入设备的问题。',true);
         if(e.recording)recording=null;controls();await recordings();
         if(selected&&e.recording&&selected.id===e.recording.id){selected={...selected,...e.recording};await openRecording(e.recording).catch(error);}
         if(e.message)recordingNotice(e.message);
@@ -272,7 +276,18 @@ $('disconnect').onclick=disconnect;
 $('text-form').onsubmit=event=>{event.preventDefault();const text=$('text').value.trim();if(text&&ready&&!recording){send({type:'input.text',text});$('text').value='';}};
 $('mic').onclick=async()=>{try{if($('mic').textContent==='关闭语音'){audio.stopMic();$('mic').textContent='开启语音';return;}await audio.microphone();send({type:'session.activate'});$('mic').textContent='关闭语音';}catch(e){error(e);}};
 $('interrupt').onclick=()=>{audio.clear();send({type:'interrupt'});};
-async function startRecording(){try{await audio.microphone();send({type:'recording.start'});}catch(e){error(e);}}
+async function startRecording(){
+  try{
+    await audio.microphone();
+    audioPackets=0;
+    clearTimeout(silenceTimer);
+    silenceTimer=setTimeout(()=>{
+      if(recording&&audioPackets===0)
+        recordingNotice('没有收到麦克风声音：请检查浏览器的麦克风权限和输入设备，然后再试一次。',true);
+    },2500);
+    send({type:'recording.start'});
+  }catch(e){error(e);}
+}
 $('record-toggle').onclick=async()=>{
   if(recording){send({type:recording.paused?'recording.resume':'recording.pause'});return;}
   await startRecording();
