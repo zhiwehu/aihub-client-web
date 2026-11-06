@@ -1,5 +1,6 @@
 import {ClientAudio} from './audio.js';
 import {ChatView} from './chat-view.js';
+import {renderMinutesMarkdown} from './minutes-view.js';
 const $=id=>document.getElementById(id);
 const chat=new ChatView();
 let previousPage='chat';
@@ -210,7 +211,10 @@ async function minutes(){
   const data=await api('recordings/'+selected.id+'/minutes');
   if(!data.jobs?.length){$('minutes').textContent='还没有摘要，点击上方“生成摘要”创建。';return;}
   const job=await api('recordings/'+selected.id+'/minutes/'+data.jobs[0].id);
-  $('minutes').textContent=job.job?.result?(job.job.edited_markdown||job.job.result.markdown||JSON.stringify(job.job.result,null,2)):('状态：'+(job.job?.status||'未知')+(job.job?.error?' · '+JSON.stringify(job.job.error):''));
+  const markdown=job.job?.result?(job.job.edited_markdown||job.job.result.markdown||''):'';
+  $('minutes').innerHTML=markdown?renderMinutesMarkdown(markdown):
+    '<p class="minutes-empty">状态：'+escapeState(job.job?.status||'未知')+
+    (job.job?.error?' · '+escapeState(JSON.stringify(job.job.error)):'')+'</p>';
 }
 $('connection').onsubmit=async event=>{
   event.preventDefault();$('error').textContent='';disconnect();
@@ -276,6 +280,7 @@ $('record-toggle').onclick=async()=>{
 $('stop-recording').onclick=()=>send({type:'recording.stop'});
 $('refresh-recordings').onclick=()=>recordings().catch(error);
 $('player').addEventListener('timeupdate',highlightTranscriptLine);
+function escapeState(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function saveBlob(blob,name){
   const url=URL.createObjectURL(blob);const link=document.createElement('a');
   link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
